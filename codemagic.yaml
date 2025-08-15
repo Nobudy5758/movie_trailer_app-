@@ -2,8 +2,8 @@ workflows:
   kivy_build:
     name: Build Kivy APK
     environment:
-      groups:
-        - default   # Ye tumhara HUGGINGFACE_API_KEY env var load karega
+      vars:
+        PYTHON_VERSION: "3.9"
     scripts:
       - pip install --upgrade pip
       - pip install -r requirements.txt
@@ -12,7 +12,3 @@ workflows:
       - buildozer -v android debug
     artifacts:
       - build/*.apk
-    publishing:
-      email:
-        recipients:
-          - your-email@example.com   # Yahan apna email likho jahan APK ka link aayega
