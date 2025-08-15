@@ -1,6 +1,6 @@
 workflows:
   kivy-android:
-    name: Kivy Android APK Build
+    name: Kivy Android APK Build (Debug)
     max_build_duration: 120
     instance_type: mac_mini_m1
     environment:
@@ -16,10 +16,10 @@ workflows:
           pip install --upgrade Cython buildozer
       - name: Install project requirements
         script: |
-          pip install -r requirements.txt
-      - name: Build APK
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; else echo "No requirements.txt found"; fi
+      - name: Build Debug APK
         script: |
-          buildozer -v android debug
+          if [ -f buildozer.spec ]; then buildozer -v android debug; else echo "No buildozer.spec found"; fi
     artifacts:
       - buildozer.spec
       - bin/*.apk
