@@ -6,8 +6,14 @@ workflows:
     environment:
       vars:
         HUGGINGFACE_API_KEY: $HUGGINGFACE_API_KEY
-      python: 3.12.7
+      xcode: latest
+      groups:
+        - default
     scripts:
+      - name: Set Python Version
+        script: |
+          pyenv global 3.12.7
+          python --version
       - name: Update pip & setuptools
         script: |
           pip install --upgrade pip setuptools wheel
