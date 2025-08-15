@@ -4,4 +4,4 @@ requests==2.31.0
 kivy==2.3.0
 ffmpeg-python==0.2.0
 numpy==1.23.5
-pillow==9.5.0
+setuptools==65.5.1
