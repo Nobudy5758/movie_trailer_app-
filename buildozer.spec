@@ -1,15 +1,14 @@
 [app]
 title = Movie Trailer App
-package.name = movietrailerapp
-package.domain = org.yourname
+package.name = movietrailer
+package.domain = org.example
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
-icon.filename = assets/icon.png
 version = 1.0
-requirements = python3,kivy,moviepy,scenedetect,requests
+requirements = python3,kivy,moviepy,scenedetect,ffmpeg-python,requests,numpy,setuptools
 orientation = portrait
 fullscreen = 0
 
 [buildozer]
 log_level = 2
-warn_on_root = 1
+warn_on_root = 0
