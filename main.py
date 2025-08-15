@@ -1,105 +1,107 @@
 import os
-import requests
+import threading
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
-from kivy.uix.filechooser import FileChooserListView
-from kivy.uix.spinner import Spinner
-from kivy.clock import Clock
-from moviepy.editor import VideoFileClip, concatenate_videoclips
+from kivy.uix.filechooser import FileChooserIconView
+from kivy.clock import mainthread
+from kivy.core.window import Window
+import requests
+import subprocess
 from scenedetect import VideoManager, SceneManager
 from scenedetect.detectors import ContentDetector
+from moviepy.editor import VideoFileClip, concatenate_videoclips
 
-HUGGINGFACE_API_KEY = os.environ.get("HUGGINGFACE_API_KEY")  # Environment se key load
+HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
 
 class TrailerApp(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(orientation='vertical', **kwargs)
-        
-        self.add_widget(Label(text="Select a video file:", size_hint=(1, 0.1)))
-        
-        self.file_chooser = FileChooserListView(filters=['*.mp4'])
-        self.add_widget(self.file_chooser)
-        
-        self.mode_spinner = Spinner(
-            text='Select Mode',
-            values=('Online', 'Offline'),
-            size_hint=(1, 0.1)
-        )
-        self.add_widget(self.mode_spinner)
-        
-        self.generate_btn = Button(text="Generate Trailer", size_hint=(1, 0.1))
-        self.generate_btn.bind(on_press=self.generate_trailer)
-        self.add_widget(self.generate_btn)
-        
-        self.status_label = Label(text="", size_hint=(1, 0.1))
-        self.add_widget(self.status_label)
+        self.selected_video = None
 
-    def generate_trailer(self, instance):
-        if not self.file_chooser.selection:
-            self.status_label.text = "No file selected!"
+        self.label = Label(text="Select a video to create trailer", size_hint=(1, 0.1))
+        self.add_widget(self.label)
+
+        self.filechooser = FileChooserIconView(size_hint=(1, 0.6))
+        self.filechooser.bind(on_selection=self.select_file)
+        self.add_widget(self.filechooser)
+
+        self.btn_online = Button(text="Generate Trailer (Online)", size_hint=(1, 0.15))
+        self.btn_online.bind(on_press=lambda x: self.start_generation(online=True))
+        self.add_widget(self.btn_online)
+
+        self.btn_offline = Button(text="Generate Trailer (Offline)", size_hint=(1, 0.15))
+        self.btn_offline.bind(on_press=lambda x: self.start_generation(online=False))
+        self.add_widget(self.btn_offline)
+
+    def select_file(self, chooser, selection):
+        if selection:
+            self.selected_video = selection[0]
+            self.label.text = f"Selected: {os.path.basename(self.selected_video)}"
+
+    def start_generation(self, online):
+        if not self.selected_video:
+            self.label.text = "Please select a video first!"
             return
-        
-        file_path = self.file_chooser.selection[0]
-        mode = self.mode_spinner.text
-        
-        if mode == "Online":
-            self.status_label.text = "Processing Online..."
-            Clock.schedule_once(lambda dt: self.online_process(file_path), 0)
-        elif mode == "Offline":
-            self.status_label.text = "Processing Offline..."
-            Clock.schedule_once(lambda dt: self.offline_process(file_path), 0)
-        else:
-            self.status_label.text = "Please select mode!"
+        self.label.text = "Generating trailer..."
+        threading.Thread(target=self.generate_trailer, args=(online,)).start()
 
-    def online_process(self, file_path):
+    @mainthread
+    def update_status(self, message):
+        self.label.text = message
+
+    def generate_trailer(self, online):
         try:
-            API_URL = "https://api-inference.huggingface.co/models/your-model-id"
-            headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
+            if online:
+                clips = self.detect_scenes_online()
+            else:
+                clips = self.detect_scenes_offline()
 
-            with open(file_path, "rb") as f:
-                response = requests.post(API_URL, headers=headers, data=f)
-
-            if response.status_code != 200:
-                self.status_label.text = f"API Error: {response.text}"
+            if not clips:
+                self.update_status("No scenes detected.")
                 return
 
-            clip = VideoFileClip(file_path).subclip(0, 10)
-            os.makedirs("trailers", exist_ok=True)
-            output_path = os.path.join("trailers", "trailer_online.mp4")
-            clip.write_videofile(output_path)
+            final_clip = concatenate_videoclips(clips)
+            output_path = os.path.join(os.path.dirname(self.selected_video), "trailer.mp4")
+            final_clip.write_videofile(output_path)
+            self.update_status(f"Trailer saved: {output_path}")
 
-            self.status_label.text = f"Online trailer saved: {output_path}"
         except Exception as e:
-            self.status_label.text = f"Error: {str(e)}"
+            self.update_status(f"Error: {str(e)}")
 
-    def offline_process(self, file_path):
-        try:
-            video_manager = VideoManager([file_path])
-            scene_manager = SceneManager()
-            scene_manager.add_detector(ContentDetector(threshold=30.0))
-            video_manager.start()
-            scene_manager.detect_scenes(frame_source=video_manager)
-            scene_list = scene_manager.get_scene_list()
+    def detect_scenes_offline(self):
+        video_manager = VideoManager([self.selected_video])
+        scene_manager = SceneManager()
+        scene_manager.add_detector(ContentDetector(threshold=30.0))
+        video_manager.start()
+        scene_manager.detect_scenes(frame_source=video_manager)
+        scenes = scene_manager.get_scene_list()
+        video_manager.release()
 
-            clips = []
-            for start_time, end_time in scene_list[:3]:
-                clip = VideoFileClip(file_path).subclip(start_time.get_seconds(), end_time.get_seconds())
-                clips.append(clip)
+        clips = []
+        for start, end in scenes[:5]:  # First 5 scenes
+            clip = VideoFileClip(self.selected_video).subclip(start.get_seconds(), end.get_seconds())
+            clips.append(clip)
+        return clips
 
-            final_trailer = concatenate_videoclips(clips)
-            os.makedirs("trailers", exist_ok=True)
-            output_path = os.path.join("trailers", "trailer_offline.mp4")
-            final_trailer.write_videofile(output_path)
+    def detect_scenes_online(self):
+        headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
+        files = {"file": open(self.selected_video, "rb")}
+        response = requests.post("https://api-inference.huggingface.co/models/your-model", headers=headers, files=files)
 
-            self.status_label.text = f"Offline trailer saved: {output_path}"
-        except Exception as e:
-            self.status_label.text = f"Error: {str(e)}"
+        # NOTE: Replace with your Hugging Face model processing
+        scenes = [(0, 5), (10, 15), (20, 25)]  # Dummy data
+        clips = []
+        for start, end in scenes:
+            clip = VideoFileClip(self.selected_video).subclip(start, end)
+            clips.append(clip)
+        return clips
 
-class MyApp(App):
+class MovieTrailerApp(App):
     def build(self):
+        Window.size = (400, 600)
         return TrailerApp()
 
 if __name__ == "__main__":
-    MyApp().run()
+    MovieTrailerApp().run()
