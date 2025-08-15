@@ -1,25 +1,16 @@
 workflows:
-  kivy-android:
-    name: Kivy Android APK Build
-    max_build_duration: 120
-    instance_type: mac_mini_m1
+  kivy-build:
+    name: Build Kivy APK
     environment:
-      vars:
-        HUGGINGFACE_API_KEY: $HUGGINGFACE_API_KEY
-      groups:
-        - default
+      python: "3.10"
     scripts:
-      - name: Update pip & setuptools
-        script: |
-          python3 -m pip install --upgrade pip setuptools wheel
-      - name: Install build tools
-        script: |
-          python3 -m pip install --upgrade Cython buildozer
       - name: Install project requirements
         script: |
+          python3 -m pip install --upgrade pip
           python3 -m pip install -r requirements.txt
       - name: Build APK
         script: |
           buildozer -v android debug
     artifacts:
+      - buildozer.spec
       - bin/*.apk
