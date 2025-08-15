@@ -1,0 +1,4 @@
+kivy
+moviepy
+scenedetect
+requests
