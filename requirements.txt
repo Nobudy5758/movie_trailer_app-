@@ -1,4 +1,7 @@
-kivy
-moviepy
-scenedetect
-requests
+moviepy==1.0.3
+scenedetect==0.6.1
+requests==2.31.0
+kivy==2.3.0
+ffmpeg-python==0.2.0
+numpy==1.23.5
+pillow==9.5.0
